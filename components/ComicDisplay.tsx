@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { ComicPanelData } from '../types';
 
@@ -94,7 +95,8 @@ const ComicDisplay: React.FC<ComicDisplayProps> = ({ panels, status, completedCo
         ))}
         
         {/* Fill remaining slots if panel array isn't full yet (e.g. during scripting) */}
-        {panels.length < 4 && status !== 'idle' && renderPlaceholders().slice(panels.length)}
+        {/* Fix: removed redundant 'status !== idle' check as status is narrowed by the guard clause at the start of the component */}
+        {panels.length < 4 && renderPlaceholders().slice(panels.length)}
       </div>
     </div>
   );

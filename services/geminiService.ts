@@ -1,4 +1,5 @@
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+
+import { GoogleGenAI, Type } from "@google/genai";
 import { ScriptResponseItem } from '../types';
 
 // Initialize Gemini Client
@@ -19,7 +20,7 @@ Panel 4: A heartwarming conclusion or comforting message.
 Output ONLY JSON.
 `;
 
-const responseSchema: Schema = {
+const responseSchema = {
   type: Type.ARRAY,
   items: {
     type: Type.OBJECT,
@@ -39,7 +40,8 @@ const responseSchema: Schema = {
 
 export const generateComicScript = async (userInput: string, userImagesBase64?: string[]): Promise<ScriptResponseItem[]> => {
   try {
-    const model = "gemini-2.5-flash";
+    // Fix: Updated model to gemini-3-flash-preview for text generation tasks
+    const model = "gemini-3-flash-preview";
     
     // Construct the prompt contents
     const contents: any[] = [];
@@ -88,7 +90,7 @@ export const generateComicScript = async (userInput: string, userImagesBase64?: 
 
 export const generatePanelImage = async (description: string, referenceImagesBase64?: string[]): Promise<string> => {
   try {
-    // We use gemini-2.5-flash-image for image generation
+    // We use gemini-2.5-flash-image for image generation as per default guidelines
     const model = "gemini-2.5-flash-image";
     
     const parts: any[] = [];
@@ -126,7 +128,7 @@ export const generatePanelImage = async (description: string, referenceImagesBas
       contents: { parts },
     });
 
-    // Extract image from response parts
+    // Extract image from response parts by iterating through them
     if (response.candidates && response.candidates[0].content.parts) {
       for (const part of response.candidates[0].content.parts) {
         if (part.inlineData && part.inlineData.data) {
