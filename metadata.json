@@ -1,5 +1,5 @@
 {
-  "name": "Mindful Comics (暖心漫畫)",
-  "description": "A warm, supportive web application that generates 4-panel comic strips based on your feelings, designed to improve mental health.",
+  "name": "應援漫畫 (Cheering Comics)",
+  "description": "A supportive web application that helps users cheer for themselves through AI-generated 4-panel comic strips.",
   "requestFramePermissions": []
 }

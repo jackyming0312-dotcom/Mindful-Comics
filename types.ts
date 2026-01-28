@@ -1,3 +1,8 @@
+
+export type ArtStyle = 'japanese' | 'korean' | 'european' | 'cyberpunk' | 'pixel' | 'animated';
+
+export type GenerationMode = 'public' | 'kids';
+
 export interface ComicPanelData {
   panelNumber: number;
   description: string;
@@ -9,7 +14,8 @@ export interface ComicGenerationState {
   status: 'idle' | 'scripting' | 'drawing' | 'completed' | 'error';
   panels: ComicPanelData[];
   error?: string;
-  completedCount: number; // How many panels are drawn
+  completedCount: number;
+  activeStyle?: ArtStyle;
 }
 
 export interface ScriptResponseItem {

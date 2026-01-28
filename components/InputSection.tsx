@@ -1,138 +1,234 @@
+
 import React, { useState, useRef } from 'react';
+import { ArtStyle, GenerationMode } from '../types';
 
 interface InputSectionProps {
-  onSubmit: (text: string, imagesBase64: string[]) => void;
+  onSubmit: (text: string, style: ArtStyle, mode: GenerationMode, imagesBase64: string[]) => void;
   isLoading: boolean;
 }
 
 const InputSection: React.FC<InputSectionProps> = ({ onSubmit, isLoading }) => {
+  const [mode, setMode] = useState<GenerationMode>('public');
+  const [style, setStyle] = useState<ArtStyle>('japanese');
   const [input, setInput] = useState('');
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const KIDS_STORIES = [
+    { id: 'space', label: '🚀 太空冒險', prompt: '一個關於在月球上野餐的奇幻冒險' },
+    { id: 'ocean', label: '🧜‍♀️ 海底世界', prompt: '在五彩斑斕的海底宮殿參加派對' },
+    { id: 'animal', label: '🐾 森林學校', prompt: '和會說話的小動物們一起上課的一天' },
+    { id: 'dino', label: '🦖 恐龍朋友', prompt: '穿越時空回到過去，與善良的恐龍成為好友' },
+    { id: 'magic', label: '🏰 魔法學院', prompt: '學會了第一招魔法，展開有趣的校園生活' }
+  ];
+
+  const PUBLIC_PROMPTS = [
+    "最近讓你感到最放鬆的一件事是什麼？",
+    "今天有沒有什麼小小的成就感？",
+    "如果可以對過去的自己說一句話，你會說什麼？",
+    "描述一個讓你感到溫暖的瞬間。",
+    "你理想中的放鬆午後是什麼樣子的？",
+    "最近有遇到什麼讓你想要感謝的人或事嗎？",
+    "想像一個沒有壓力的秘密基地，那裡長什麼樣子？",
+    "今天的心情如果是一種顏色，會是什麼顏色？為什麼？",
+    "最近有什麼讓你開懷大笑的小插曲嗎？",
+    "給未來的自己寫一張鼓勵的小紙條。"
+  ];
+
+  const STYLES = [
+    { id: 'animated', label: '微動療癒', icon: '✨' },
+    { id: 'japanese', label: '日式黑白', icon: '🖋️' },
+    { id: 'korean', label: '現代韓漫', icon: '🎨' },
+    { id: 'european', label: '古典歐漫', icon: '📐' },
+    { id: 'cyberpunk', label: '賽博霓虹', icon: '🌃' },
+    { id: 'pixel', label: '復古像素', icon: '👾' }
+  ];
+
+  const handleRandomPrompt = () => {
+    const randomIndex = Math.floor(Math.random() * PUBLIC_PROMPTS.length);
+    setInput(PUBLIC_PROMPTS[randomIndex]);
+  };
+
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (input.trim() && !isLoading) {
-      onSubmit(input, selectedImages);
+      onSubmit(input, style, mode, selectedImages);
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      // Convert FileList to array and limit to 4 total images for performance/relevance
-      // Cast to File[] to avoid 'unknown' type in map which causes error in readAsDataURL
-      const newFiles = Array.from(files).slice(0, 4 - selectedImages.length) as File[];
-      
-      if (newFiles.length === 0) {
-        alert("最多只能上傳 4 張照片 / Max 4 photos allowed");
-        return;
-      }
-
-      const promises = newFiles.map(file => {
-        return new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            resolve(reader.result as string);
-          };
-          reader.readAsDataURL(file);
-        });
-      });
-
-      Promise.all(promises).then(images => {
-        setSelectedImages(prev => [...prev, ...images]);
-      });
-    }
-    // Reset input so same file can be selected again if needed
-    if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-    }
-  };
-
-  const removeImage = (indexToRemove: number) => {
-    setSelectedImages(prev => prev.filter((_, index) => index !== indexToRemove));
+    const files = Array.from(e.target.files || []).slice(0, 1 - selectedImages.length) as File[];
+    const promises = files.map(file => new Promise<string>((res) => {
+      const reader = new FileReader();
+      reader.onloadend = () => res(reader.result as string);
+      reader.readAsDataURL(file);
+    }));
+    Promise.all(promises).then(imgs => setSelectedImages(p => [...p, ...imgs]));
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto px-4 mb-8">
-      <form onSubmit={handleSubmit} className="flex flex-col items-center gap-6">
-        
-        <div className="w-full relative">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            disabled={isLoading}
-            placeholder="今天發生了什麼事？(例如：和朋友去海邊玩，風好大...)"
-            className="w-full h-32 p-6 text-lg border-2 border-warm-300 bg-white shadow-sm resize-none focus:outline-none focus:border-warm-500 focus:ring-2 focus:ring-warm-200 transition-all hand-drawn-input text-stone-700 placeholder-stone-400"
-          />
-          
-          {/* Decorative sticker */}
-          <div className="absolute -top-3 -right-2 transform rotate-12 bg-yellow-100 border border-yellow-300 px-3 py-1 rounded-full shadow-sm text-xs text-yellow-700 font-bold hidden md:block">
-            Tell me...
-          </div>
-        </div>
-
-        {/* Image Upload Section */}
-        <div className="w-full flex flex-col items-center">
-            <input 
-              type="file" 
-              ref={fileInputRef}
-              onChange={handleFileChange} 
-              accept="image/*" 
-              multiple
-              className="hidden" 
-            />
-            
-            <div className="flex flex-wrap justify-center gap-4 mb-4">
-                {selectedImages.map((img, index) => (
-                    <div key={index} className="relative group animate-fade-in z-10 hover:z-20 transition-all hover:scale-105" style={{ transform: `rotate(${(index % 2 === 0 ? 1 : -1) * (2 + index)}deg)` }}>
-                        {/* Polaroid Style Preview */}
-                        <div className="bg-white p-2 pb-8 shadow-md border border-stone-200 w-24 md:w-28">
-                            <img src={img} alt={`Preview ${index}`} className="w-full h-20 md:h-24 object-cover bg-stone-100" />
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => removeImage(index)}
-                            className="absolute -top-2 -right-2 bg-red-400 text-white rounded-full p-1 shadow-md hover:bg-red-500 transition-colors z-30"
-                        >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                        </button>
-                        {/* Tape decoration */}
-                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-8 h-3 bg-warm-200/80 transform rotate-1"></div>
-                    </div>
-                ))}
-            </div>
-
-            {selectedImages.length < 4 && (
-                 <button
-                 type="button"
-                 onClick={() => fileInputRef.current?.click()}
-                 disabled={isLoading}
-                 className="flex items-center gap-2 px-6 py-2 bg-white border-2 border-dashed border-warm-400 rounded-2xl text-warm-600 hover:bg-warm-50 hover:border-warm-600 transition-colors"
-               >
-                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                 </svg>
-                 <span>{selectedImages.length > 0 ? '加入更多照片' : '上傳照片 (最多 4 張)'}</span>
-               </button>
-            )}
-        </div>
-        
-        <button
-          type="submit"
-          disabled={!input.trim() || isLoading}
-          className={`
-            px-8 py-3 rounded-full font-bold text-white text-lg shadow-md transition-transform transform active:scale-95
-            ${!input.trim() || isLoading 
-              ? 'bg-stone-300 cursor-not-allowed' 
-              : 'bg-warm-500 hover:bg-warm-600 hover:-translate-y-1 rotate-1'}
-          `}
+    <div className="w-full max-w-2xl mx-auto px-4 mb-12 space-y-10 animate-fade-in">
+      
+      {/* Mode Switcher - Softer feel */}
+      <div className="flex bg-warm-100/50 p-1.5 rounded-3xl border border-warm-200 shadow-inner">
+        <button 
+          onClick={() => { setMode('public'); setInput(''); }}
+          className={`flex-1 py-3.5 px-4 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-2 ${mode === 'public' ? 'bg-white shadow-soft text-warm-800 scale-[1.02]' : 'text-warm-500 hover:text-warm-600'}`}
         >
-          {isLoading ? '生成故事中...' : '開始繪製 (Draw)'}
+          <span className="text-xl">🌟</span>
+          <span>大眾模式</span>
         </button>
-      </form>
+        <button 
+          onClick={() => { setMode('kids'); setInput(''); }}
+          className={`flex-1 py-3.5 px-4 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-2 ${mode === 'kids' ? 'bg-white shadow-soft text-warm-800 scale-[1.02]' : 'text-warm-500 hover:text-warm-600'}`}
+        >
+          <span className="text-xl">🧸</span>
+          <span>小朋友模式</span>
+        </button>
+      </div>
+
+      {/* Style Picker - Scrolling Cards */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between px-2">
+          <label className="text-stone-700 font-bold flex items-center gap-2">
+            <span>🎨 藝術畫風</span>
+            <span className="text-xs font-normal text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full">選擇一個風格</span>
+          </label>
+        </div>
+        <div className="flex gap-4 overflow-x-auto pb-4 pt-1 px-1 scrollbar-hide">
+          {STYLES.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setStyle(s.id as ArtStyle)}
+              className={`flex-shrink-0 w-32 h-24 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center justify-center gap-2 group ${style === s.id ? 'bg-warm-500 text-white border-warm-600 shadow-warm scale-105' : 'bg-white border-stone-100 text-stone-600 hover:border-warm-200'}`}
+            >
+              <span className={`text-3xl group-hover:scale-110 transition-transform`}>{s.icon}</span>
+              <span className="text-xs font-bold">{s.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="glass-card p-6 md:p-8 rounded-[2rem] shadow-soft space-y-8 relative overflow-hidden">
+        
+        {/* Input Area */}
+        {mode === 'public' ? (
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-stone-700 font-bold block ml-1">✍️ 您的心情與故事</label>
+                <button 
+                  onClick={handleRandomPrompt}
+                  className="flex items-center gap-1.5 text-xs font-bold text-warm-600 hover:text-warm-700 bg-warm-50 px-3 py-1.5 rounded-full border border-warm-100 transition-all active:scale-95"
+                >
+                  <span>💡</span>
+                  <span>隨機生成引導</span>
+                </button>
+              </div>
+              <div className="relative group">
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  disabled={isLoading}
+                  placeholder="最近的心情如何？有什麼想說的故事嗎？"
+                  className="w-full h-40 p-6 text-lg border-2 border-stone-100 bg-white/80 rounded-3xl resize-none focus:outline-none focus:border-warm-400 transition-colors placeholder:text-stone-300 text-stone-700 shadow-inner"
+                />
+                <div className="absolute top-4 right-6 text-xs text-warm-600 opacity-50 font-medium">
+                  {input.length} 字
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 pt-1">
+                {['#最近開心的事', '#我的小煩惱', '#未來的夢想'].map(tag => (
+                  <button key={tag} onClick={() => setInput(p => p + (p ? ' ' : '') + tag)} className="text-xs bg-warm-50 text-warm-600 px-3 py-1.5 rounded-full hover:bg-warm-100 transition-colors">
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+             <label className="text-stone-700 font-bold block ml-1">🌈 選擇一個童話開頭</label>
+             <div className="grid grid-cols-1 gap-3">
+              {KIDS_STORIES.map((story) => (
+                <button
+                  key={story.id}
+                  onClick={() => setInput(story.prompt)}
+                  className={`p-4 rounded-2xl border-2 transition-all duration-300 text-left flex items-center justify-between group ${input === story.prompt ? 'bg-warm-500 text-white border-warm-600 shadow-md' : 'bg-white border-stone-100 text-stone-600 hover:bg-warm-50'}`}
+                >
+                  <span className="font-bold">{story.label}</span>
+                  <span className={`transition-transform group-hover:translate-x-1 ${input === story.prompt ? 'opacity-100' : 'opacity-30'}`}>➔</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Character Photo Section - High Emphasis */}
+        <div className="space-y-4 pt-4 border-t border-stone-100">
+           <div className="flex items-center justify-between">
+              <label className="text-stone-700 font-bold flex items-center gap-2">
+                <span>📸 人物照片還原</span>
+                <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">NEW</span>
+              </label>
+              <button 
+                type="button" 
+                onClick={() => fileInputRef.current?.click()}
+                className="text-xs text-warm-600 font-bold hover:underline"
+              >
+                {selectedImages.length > 0 ? '更換照片' : '上傳照片'}
+              </button>
+           </div>
+           
+           <div className="flex justify-center">
+             {selectedImages.length > 0 ? (
+               <div className="group relative w-32 h-32 rounded-3xl overflow-hidden border-4 border-white shadow-warm animate-float">
+                  <img src={selectedImages[0]} className="w-full h-full object-cover" />
+                  <button 
+                    onClick={() => setSelectedImages([])}
+                    className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center font-bold text-xs"
+                  >
+                    移除
+                  </button>
+               </div>
+             ) : (
+               <button 
+                 onClick={() => fileInputRef.current?.click()}
+                 className="w-full py-10 border-2 border-dashed border-stone-200 rounded-3xl flex flex-col items-center justify-center gap-2 text-stone-400 hover:border-warm-300 hover:text-warm-500 transition-all bg-stone-50/50"
+               >
+                 <div className="text-3xl">📷</div>
+                 <div className="text-sm font-medium">上傳您的美照，讓 AI 繪製專屬角色</div>
+                 <div className="text-[10px] opacity-60">建議上傳清晰的臉部正面照</div>
+               </button>
+             )}
+           </div>
+           <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
+        </div>
+
+        {/* Generate Button */}
+        <div className="pt-6">
+          <button
+            onClick={() => handleSubmit()}
+            disabled={!input.trim() || isLoading}
+            className={`w-full py-5 rounded-3xl font-bold text-white text-xl shadow-warm transition-all duration-500 transform active:scale-95 flex items-center justify-center gap-3 ${!input.trim() || isLoading ? 'bg-stone-300 cursor-not-allowed opacity-50' : 'bg-gradient-to-r from-warm-500 to-orange-500 hover:shadow-2xl hover:-translate-y-1'}`}
+          >
+            {isLoading ? (
+              <>
+                <svg className="animate-spin h-6 w-6 text-white" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>魔法正在發生...</span>
+              </>
+            ) : (
+              <>
+                <span>✨</span>
+                <span>生成我的暖心漫畫</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

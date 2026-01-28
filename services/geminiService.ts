@@ -1,145 +1,171 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { ScriptResponseItem } from '../types';
+import { ScriptResponseItem, ArtStyle, GenerationMode } from '../types';
 
-// Initialize Gemini Client
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// System instruction for the script writer
-const SCRIPT_SYSTEM_INSTRUCTION = `
-You are a compassionate, empathetic comic strip creator specializing in mental health support. 
-Your goal is to take a user's feeling, situation, and optionally their photos, to turn it into a heartwarming, 4-panel comic strip.
-The tone should be warm, healing, gentle, and encouraging.
-The visual style description should be suitable for a simple, cute, hand-drawn watercolor aesthetic.
-Avoid complex details; focus on emotions and simple character actions.
-If photos are provided, incorporate elements from the photos (clothing, setting, characters) into the story naturally.
-Panel 1: Introduce the feeling/situation.
-Panel 2: Acknowledge or validate the feeling.
-Panel 3: A turning point, a small act of self-care, or a shift in perspective.
-Panel 4: A heartwarming conclusion or comforting message.
-Output ONLY JSON.
-`;
-
-const responseSchema = {
-  type: Type.ARRAY,
-  items: {
-    type: Type.OBJECT,
-    properties: {
-      panelDescription: {
-        type: Type.STRING,
-        description: "Visual description of the scene for an image generator. Mention style: 'watercolor, hand-drawn, cute, warm colors'. Describe the main character's appearance (hair, clothes) in EVERY panel description to keep it consistent.",
-      },
-      caption: {
-        type: Type.STRING,
-        description: "The text/dialogue for this panel. Keep it short and sweet (Traditional Chinese).",
-      },
-    },
-    required: ["panelDescription", "caption"],
-  },
+const getStylePrompt = (style: ArtStyle) => {
+  switch (style) {
+    case 'japanese':
+      return "Classic Japanese Manga style. Focus on high-contrast ink lines, screentones, and expressive eyes. The character must be a recognizable anime-version of the reference.";
+    case 'korean':
+      return "Modern Korean Webtoon (Manhwa) style. Clean digital line-art, sophisticated soft coloring, and trendy aesthetic character designs with realistic proportions.";
+    case 'european':
+      return "European 'Ligne Claire' style (Tintin-esque). Strong, clean black outlines with flat, vibrant colors and clear backgrounds.";
+    case 'cyberpunk':
+      return "High-detail Cyberpunk digital art. Neon-lit atmosphere, synthwave palette (purple/cyan), futuristic fashion, and glowing technological details.";
+    case 'pixel':
+      return "Detailed 16-bit Pixel Art. High-quality sprite work with vibrant retro colors, maintaining the character's key recognizable features in pixel form.";
+    case 'animated':
+      return "Living Art style. Dreamy digital painting with soft glowing highlights and deep cinematic shadows. The composition should suggest potential motion, like a frame from a high-end animated movie.";
+    default:
+      return "Warm, hand-painted watercolor storybook illustration with soft edges and gentle lighting.";
+  }
 };
 
-export const generateComicScript = async (userInput: string, userImagesBase64?: string[]): Promise<ScriptResponseItem[]> => {
+export const generateComicScript = async (
+  userInput: string, 
+  style: ArtStyle,
+  mode: GenerationMode,
+  userImagesBase64?: string[]
+): Promise<ScriptResponseItem[]> => {
   try {
-    // Fix: Updated model to gemini-3-flash-preview for text generation tasks
     const model = "gemini-3-flash-preview";
+    const styleDescription = getStylePrompt(style);
+    const hasPhoto = userImagesBase64 && userImagesBase64.length > 0;
     
-    // Construct the prompt contents
+    const modeInstruction = mode === 'kids' 
+      ? `Target Audience: Children. 
+         Character Focus: The main character is a cute child. 
+         ${hasPhoto ? "CRITICAL: Analyze the provided photo. Describe the character's hair (style/color), eye shape, and facial structure precisely to maintain likeness." : ""}
+         Theme: Positive, magical, and friendly.` 
+      : `Target Audience: General Public. Focus on mental health and emotional journey.
+         ${hasPhoto ? "CRITICAL: The protagonist MUST be the person from the uploaded photo. Describe their facial features, hairstyle, and distinctive physical traits in detail for each panel." : ""}`;
+    
     const contents: any[] = [];
-    
-    // Add images if available
     if (userImagesBase64 && userImagesBase64.length > 0) {
       userImagesBase64.forEach(img => {
-        const base64Data = img.split(',')[1];
-        const mimeType = img.split(';')[0].split(':')[1];
         contents.push({
           inlineData: {
-            mimeType: mimeType,
-            data: base64Data,
+            mimeType: img.split(';')[0].split(':')[1],
+            data: img.split(',')[1],
           },
         });
       });
-      
-      contents.push({
-        text: `The user has provided these photos as context for the story. Analyze them to understand the setting or the character's look. Use this visual context combined with their text input: "${userInput}". \n\nCreate a 4-panel healing comic script. \n\nIMPORTANT: Describe the main character's appearance based on the photos in the 'panelDescription' so the image generator knows what to draw.`
-      });
-    } else {
-      contents.push({
-        text: `User's feeling: "${userInput}". Create a 4-panel healing comic script. Create a simple, relatable main character (e.g., a cute bear, a bunny, or a person).`
-      });
     }
+
+    contents.push({
+      text: `TASK: Create a 4-panel healing comic script.
+      USER STORY: "${userInput}"
+      ART STYLE: ${styleDescription}
+      ${modeInstruction}
+      
+      INSTRUCTION: 
+      1. For 'panelDescription': Write a high-quality, descriptive ENGLISH prompt for an image generator. 
+         It MUST include specific details about the character's facial expression, hair, and clothing to ensure consistency with the reference photo.
+      2. For 'caption': Write a warm, supportive Traditional Chinese text.
+      
+      Output ONLY valid JSON.`
+    });
 
     const response = await ai.models.generateContent({
       model: model,
       contents: { parts: contents },
       config: {
-        systemInstruction: SCRIPT_SYSTEM_INSTRUCTION,
+        systemInstruction: "You are an expert comic designer. You excel at character consistency and emotional storytelling. You must describe the character's appearance in the image prompts based on the visual evidence in the provided photos.",
         responseMimeType: "application/json",
-        responseSchema: responseSchema,
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              panelDescription: { type: Type.STRING, description: "Detailed visual prompt in English including character physical traits" },
+              caption: { type: Type.STRING, description: "Healing Chinese caption" },
+            },
+            required: ["panelDescription", "caption"],
+          },
+        },
       },
     });
 
-    if (response.text) {
-      return JSON.parse(response.text) as ScriptResponseItem[];
-    }
-    throw new Error("No text returned from script generation.");
+    return JSON.parse(response.text || "[]") as ScriptResponseItem[];
   } catch (error) {
     console.error("Script generation failed:", error);
     throw error;
   }
 };
 
-export const generatePanelImage = async (description: string, referenceImagesBase64?: string[]): Promise<string> => {
+export const generatePanelImage = async (
+  description: string, 
+  style: ArtStyle, 
+  mode: GenerationMode,
+  referenceImagesBase64?: string[]
+): Promise<string> => {
   try {
-    // We use gemini-2.5-flash-image for image generation as per default guidelines
     const model = "gemini-2.5-flash-image";
+    const stylePrompt = getStylePrompt(style);
+    const hasPhoto = referenceImagesBase64 && referenceImagesBase64.length > 0;
     
     const parts: any[] = [];
 
-    if (referenceImagesBase64 && referenceImagesBase64.length > 0) {
-      // Add all reference images
-      referenceImagesBase64.forEach(img => {
-         const base64Data = img.split(',')[1];
-         const mimeType = img.split(';')[0].split(':')[1];
+    if (hasPhoto) {
+      referenceImagesBase64!.forEach(img => {
          parts.push({
             inlineData: {
-              mimeType: mimeType,
-              data: base64Data
+              data: img.split(',')[1],
+              mimeType: img.split(';')[0].split(':')[1]
             }
          });
       });
-
-      // Prompt tuned for preserving likeness while changing style
-      const prompt = `
-      Create a panel for a comic strip.
-      Scene Action: ${description}
-      Art Style: Hand-drawn watercolor illustration with warm pastel colors and gentle outlines.
-      Reference: Use the provided images as visual references for the character(s) and setting. Maintain the general look/likeness of the people in the photos but render them in the specified cute watercolor comic style.
-      `;
-      parts.push({ text: prompt });
-
-    } else {
-      // Text-only generation if no image provided
-      const stylePrompt = "Style: Hand-drawn watercolor illustration, warm pastel colors, thick sketchy outlines, cute simple characters, minimalist background, healing atmosphere. High quality, artistic. ";
-      parts.push({ text: stylePrompt + description });
     }
+
+    const promptText = `
+      TASK: Create a professional comic book panel.
+      STYLE: ${stylePrompt}
+      SCENE DESCRIPTION: ${description}
+      
+      ${hasPhoto ? `
+      CHARACTER LIKENESS REQUIREMENT:
+      - You MUST replicate the facial features of the person in the provided reference photos.
+      - Match their eye shape, facial structure, nose shape, and mouth precisely.
+      - Ensure the hairstyle and hair color are consistent with the reference.
+      - Replicate the specific facial expression described in the scene: "${description.split('.')[0]}".
+      - The character in this drawing must be unmistakably the same person as in the photo.
+      ` : ""}
+      
+      TECHNICAL INSTRUCTION:
+      - Deliver a single, complete illustration.
+      - Ensure high aesthetic quality and artistic consistency.
+      - DO NOT provide any text or JSON. Output the image data ONLY.
+    `;
+
+    parts.push({ text: promptText });
 
     const response = await ai.models.generateContent({
       model: model,
       contents: { parts },
     });
 
-    // Extract image from response parts by iterating through them
-    if (response.candidates && response.candidates[0].content.parts) {
-      for (const part of response.candidates[0].content.parts) {
-        if (part.inlineData && part.inlineData.data) {
-          return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-        }
+    if (!response.candidates || response.candidates.length === 0) {
+      throw new Error("Model returned no candidates.");
+    }
+
+    for (const part of response.candidates[0].content.parts) {
+      if (part.inlineData) {
+        return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
       }
     }
-    
-    throw new Error("No image data found in response.");
-  } catch (error) {
-    console.error("Image generation failed:", error);
-    throw error; // Re-throw to be handled by the UI
+
+    const textOutput = response.candidates[0].content.parts.find(p => p.text)?.text;
+    if (textOutput) {
+      console.error("Model refused to draw or returned text:", textOutput);
+      throw new Error("模型未能生成圖像。這通常是因為內容安全限制或描述過於複雜，請嘗試簡化故事敘述。");
+    }
+
+    throw new Error("Image generation failed.");
+
+  } catch (error: any) {
+    console.error("Image generation service error:", error);
+    throw error;
   }
 };
