@@ -58,7 +58,7 @@ const App: React.FC = () => {
             retryCount++;
             console.warn(`Panel ${i + 1} attempt ${retryCount} failed:`, err);
             if (retryCount >= maxRetries) {
-              throw new Error(`第 ${i + 1} 格漫畫繪製失敗。請嘗試稍微修改你的輸入或畫風。`);
+              throw err; // Throw to the main catch block
             }
             await new Promise(res => setTimeout(res, 1000));
           }
@@ -73,10 +73,30 @@ const App: React.FC = () => {
 
     } catch (error: any) {
       console.error("Generation process failed:", error);
+      
+      let errorMessage = "創作過程中遇到了一些問題，請再試一次。";
+      
+      // FIX: Parse raw JSON error message if it exists
+      try {
+        const errorStr = error.message || "";
+        if (errorStr.includes('"message"')) {
+          const parsed = JSON.parse(errorStr.substring(errorStr.indexOf('{')));
+          if (parsed.error?.message?.includes("User location is not supported")) {
+            errorMessage = "您的地區目前尚未支援此 AI 圖像生成模型 (例如 EEA/UK 地區)。請嘗試更換網路環境或稍後再試。";
+          } else {
+            errorMessage = parsed.error?.message || errorMessage;
+          }
+        } else if (errorStr.includes("User location is not supported")) {
+          errorMessage = "您的地區目前尚未支援此 AI 圖像生成模型。";
+        }
+      } catch (e) {
+        console.error("Failed to parse error JSON", e);
+      }
+
       setState(prevState => ({
         ...prevState,
         status: 'error',
-        error: error.message || "創作過程中遇到了一些問題，請再試一次。",
+        error: errorMessage,
       }));
     }
   };
@@ -90,9 +110,16 @@ const App: React.FC = () => {
           isLoading={state.status === 'scripting' || state.status === 'drawing'} 
         />
         {state.error && (
-          <div className="max-w-2xl mx-auto mb-8 p-4 bg-red-50 border-2 border-red-200 rounded-xl text-red-600 text-center animate-fade-in">
-            <p className="font-bold">⚠️ 出現錯誤</p>
-            <p className="text-sm">{state.error}</p>
+          <div className="max-w-2xl mx-auto mb-8 p-6 bg-red-50 border-2 border-red-200 rounded-[2rem] text-red-700 text-center animate-fade-in shadow-soft">
+            <div className="text-3xl mb-2">⚠️</div>
+            <p className="font-bold text-lg mb-1">發生一點小意外</p>
+            <p className="text-sm opacity-90 leading-relaxed">{state.error}</p>
+            <button 
+              onClick={() => setState(p => ({ ...p, status: 'idle', error: undefined }))}
+              className="mt-4 px-6 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-full text-xs font-bold transition-colors"
+            >
+              我知道了，再試一次
+            </button>
           </div>
         )}
         <ComicDisplay panels={state.panels} status={state.status} completedCount={state.completedCount} style={state.activeStyle} />

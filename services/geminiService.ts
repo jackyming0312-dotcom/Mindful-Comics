@@ -30,7 +30,8 @@ export const generateComicScript = async (
   userImagesBase64?: string[]
 ): Promise<ScriptResponseItem[]> => {
   try {
-    const model = "gemini-3-flash-preview";
+    // FIX: Using gemini-flash-lite-latest for better regional support
+    const model = "gemini-flash-lite-latest";
     const styleDescription = getStylePrompt(style);
     const hasPhoto = userImagesBase64 && userImagesBase64.length > 0;
     
