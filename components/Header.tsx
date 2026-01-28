@@ -1,9 +1,26 @@
 
 import React from 'react';
 
-const Header: React.FC = () => {
+interface HeaderProps {
+  onSettingsClick?: () => void;
+}
+
+const Header: React.FC<HeaderProps> = ({ onSettingsClick }) => {
   return (
     <header className="pt-20 pb-16 text-center relative px-4 overflow-hidden">
+      {/* Settings/API Key Button */}
+      <div className="absolute top-6 right-6 z-50">
+        <button 
+          onClick={onSettingsClick}
+          className="p-3 bg-white/80 backdrop-blur-md rounded-2xl border border-warm-100 shadow-soft hover:shadow-warm transition-all group active:scale-95"
+          title="設定 API 金鑰"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-warm-600 group-hover:rotate-45 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+          </svg>
+        </button>
+      </div>
+
       {/* Dynamic Background Elements */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-6xl h-96 bg-gradient-to-b from-warm-200/30 to-transparent blur-[100px] -z-0"></div>
       
@@ -11,12 +28,10 @@ const Header: React.FC = () => {
         
         {/* Beautiful Animated Logo Section */}
         <div className="relative mb-10 group animate-logo-float">
-          {/* Multi-layered glow */}
           <div className="absolute inset-0 bg-warm-400 rounded-full blur-2xl opacity-30 group-hover:opacity-60 transition-opacity"></div>
           <div className="absolute -inset-4 bg-gradient-to-tr from-warm-200 via-orange-100 to-warm-300 rounded-full opacity-20 blur-xl"></div>
           
           <div className="relative bg-white/90 backdrop-blur-md p-7 rounded-full shadow-warm border border-warm-100 flex items-center justify-center transform transition-transform duration-700 hover:rotate-12">
-            {/* SVG Logo */}
             <svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-warm-600">
               <path d="M11 5L6 9H2V15H6L11 19V5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               <path d="M19.07 4.93C20.9447 6.80521 21.9979 9.34825 21.9979 12C21.9979 14.6518 20.9447 17.1948 19.07 19.07" stroke="currentColor" strokeWidth="1.2" strokeDasharray="2 2"/>
@@ -24,7 +39,6 @@ const Header: React.FC = () => {
               <circle cx="6" cy="12" r="1.5" fill="currentColor"/>
             </svg>
             
-            {/* Floating Heart */}
             <div className="absolute -top-2 -right-2 bg-gradient-to-br from-orange-500 to-red-500 rounded-full p-2 shadow-lg animate-bounce border-2 border-white">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
@@ -33,13 +47,7 @@ const Header: React.FC = () => {
           </div>
         </div>
 
-        {/* Unified Artistic Title Block */}
         <div className="flex flex-col items-center select-none space-y-2">
-          {/* 
-            FIX: Set font-weight to normal (font-normal) instead of bold.
-            Brush fonts usually only have a 400 weight. Forcing bold causes browsers 
-            to use system fallbacks when it can't find a bold version of the brush font.
-          */}
           <h1 className="text-7xl md:text-9xl font-hand font-normal text-gradient tracking-[0.2em] px-4">
             應援漫畫
           </h1>
@@ -56,7 +64,6 @@ const Header: React.FC = () => {
           </div>
         </div>
 
-        {/* Supportive Slogan */}
         <div className="mt-12 space-y-4 max-w-2xl px-6">
           <p className="text-stone-700 text-xl font-bold leading-relaxed">
             最好的陪伴，是懂得為自己應援。
@@ -67,7 +74,6 @@ const Header: React.FC = () => {
           </p>
         </div>
         
-        {/* Status indicator */}
         <div className="mt-10 group cursor-default">
           <div className="inline-flex items-center gap-3 bg-white/80 backdrop-blur-md px-6 py-2.5 rounded-full border border-warm-100 shadow-warm hover:shadow-glow transition-all duration-300">
             <div className="relative flex h-3 w-3">

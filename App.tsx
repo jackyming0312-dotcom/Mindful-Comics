@@ -6,6 +6,19 @@ import Header from './components/Header';
 import InputSection from './components/InputSection';
 import ComicDisplay from './components/ComicDisplay';
 
+// Extend window for AI Studio tools
+// Fix: Use the AIStudio interface to match the expected global type and resolve merge conflicts
+declare global {
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+
+  interface Window {
+    aistudio: AIStudio;
+  }
+}
+
 const App: React.FC = () => {
   const [state, setState] = useState<ComicGenerationState>({
     status: 'idle',
@@ -13,9 +26,20 @@ const App: React.FC = () => {
     completedCount: 0,
     activeStyle: undefined,
   });
+  const [quotaWaitTime, setQuotaWaitTime] = useState<number | null>(null);
+
+  const handleOpenKeyDialog = async () => {
+    try {
+      await window.aistudio.openSelectKey();
+      setState(p => ({ ...p, status: 'idle', error: undefined }));
+    } catch (err) {
+      console.error("Failed to open key dialog", err);
+    }
+  };
 
   const handleStartGeneration = async (userInput: string, style: ArtStyle, mode: GenerationMode, userImagesBase64?: string[]) => {
     setState({ status: 'scripting', panels: [], completedCount: 0, error: undefined, activeStyle: style });
+    setQuotaWaitTime(null);
 
     try {
       // 1. Generate Script
@@ -34,13 +58,13 @@ const App: React.FC = () => {
         completedCount: 0,
       }));
 
-      // 2. Generate Images sequentially with retries
+      // 2. Generate Images sequentially with smarter retry
       const newPanels = [...initialPanels];
       
       for (let i = 0; i < newPanels.length; i++) {
         let success = false;
         let retryCount = 0;
-        const maxRetries = 2;
+        const maxRetries = 3;
 
         while (!success && retryCount < maxRetries) {
           try {
@@ -54,18 +78,27 @@ const App: React.FC = () => {
             }));
             
             success = true;
-          } catch (err) {
+          } catch (err: any) {
             retryCount++;
-            console.warn(`Panel ${i + 1} attempt ${retryCount} failed:`, err);
-            if (retryCount >= maxRetries) {
-              throw err; // Throw to the main catch block
+            const errorMsg = err.message || "";
+            
+            // Check for Quota Error (429)
+            if (errorMsg.includes("429") || errorMsg.includes("quota") || errorMsg.includes("Resource exhausted")) {
+              console.warn(`Panel ${i + 1} hit quota limit. Waiting...`);
+              const wait = retryCount * 15000; // 15s, 30s...
+              setQuotaWaitTime(Math.ceil(wait / 1000));
+              await new Promise(res => setTimeout(res, wait));
+              setQuotaWaitTime(null);
+            } else {
+              await new Promise(res => setTimeout(res, 2000));
             }
-            await new Promise(res => setTimeout(res, 1000));
+
+            if (retryCount >= maxRetries) throw err;
           }
         }
         
         if (i < newPanels.length - 1) {
-          await new Promise(res => setTimeout(res, 500));
+          await new Promise(res => setTimeout(res, 1000));
         }
       }
 
@@ -74,58 +107,79 @@ const App: React.FC = () => {
     } catch (error: any) {
       console.error("Generation process failed:", error);
       
-      let errorMessage = "創作過程中遇到了一些問題，請再試一次。";
-      
-      // FIX: Parse raw JSON error message if it exists
-      try {
-        const errorStr = error.message || "";
-        if (errorStr.includes('"message"')) {
-          const parsed = JSON.parse(errorStr.substring(errorStr.indexOf('{')));
-          if (parsed.error?.message?.includes("User location is not supported")) {
-            errorMessage = "您的地區目前尚未支援此 AI 圖像生成模型 (例如 EEA/UK 地區)。請嘗試更換網路環境或稍後再試。";
-          } else {
-            errorMessage = parsed.error?.message || errorMessage;
-          }
-        } else if (errorStr.includes("User location is not supported")) {
-          errorMessage = "您的地區目前尚未支援此 AI 圖像生成模型。";
-        }
-      } catch (e) {
-        console.error("Failed to parse error JSON", e);
+      let errorMessage = "創作過程中遇到了一些問題。";
+      let isQuotaError = false;
+
+      const rawError = error.message || "";
+      if (rawError.includes("429") || rawError.includes("quota") || rawError.includes("Resource exhausted")) {
+        isQuotaError = true;
+        errorMessage = "AI 生成頻率已達上限。免費額度通常每分鐘僅能生成少數幾次。";
+      } else if (rawError.includes("location is not supported")) {
+        errorMessage = "您的地區目前尚未支援此 AI 圖像生成模型。";
       }
 
       setState(prevState => ({
         ...prevState,
         status: 'error',
-        error: errorMessage,
+        error: errorMessage + (isQuotaError ? " 建議等待 1 分鐘後再試，或更換您的 API 金鑰。" : ""),
       }));
     }
   };
 
   return (
     <div className="min-h-screen bg-warm-50 relative">
-      <Header />
+      <Header onSettingsClick={handleOpenKeyDialog} />
+      
       <main className="container mx-auto pb-12">
         <InputSection 
           onSubmit={handleStartGeneration} 
           isLoading={state.status === 'scripting' || state.status === 'drawing'} 
         />
-        {state.error && (
-          <div className="max-w-2xl mx-auto mb-8 p-6 bg-red-50 border-2 border-red-200 rounded-[2rem] text-red-700 text-center animate-fade-in shadow-soft">
-            <div className="text-3xl mb-2">⚠️</div>
-            <p className="font-bold text-lg mb-1">發生一點小意外</p>
-            <p className="text-sm opacity-90 leading-relaxed">{state.error}</p>
-            <button 
-              onClick={() => setState(p => ({ ...p, status: 'idle', error: undefined }))}
-              className="mt-4 px-6 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-full text-xs font-bold transition-colors"
-            >
-              我知道了，再試一次
-            </button>
+
+        {quotaWaitTime !== null && (
+          <div className="max-w-2xl mx-auto mb-8 p-4 bg-orange-50 border border-orange-200 rounded-2xl flex items-center justify-center gap-3 text-orange-700 animate-pulse">
+            <span className="text-xl">⏳</span>
+            <span className="font-bold">配額緩衝中，請稍候 {quotaWaitTime} 秒...</span>
           </div>
         )}
+
+        {state.error && (
+          <div className="max-w-2xl mx-auto mb-8 p-8 bg-red-50 border-2 border-red-100 rounded-[2.5rem] text-red-800 text-center animate-fade-in shadow-soft">
+            <div className="text-4xl mb-4">🌬️</div>
+            <p className="font-bold text-xl mb-3">AI 正在深呼吸...</p>
+            <p className="text-sm opacity-90 leading-relaxed mb-6">{state.error}</p>
+            
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <button 
+                onClick={() => setState(p => ({ ...p, status: 'idle', error: undefined }))}
+                className="w-full sm:w-auto px-8 py-3 bg-white hover:bg-red-100 text-red-700 rounded-full text-sm font-bold transition-all border border-red-200 shadow-sm"
+              >
+                稍後再試一次
+              </button>
+              <button 
+                onClick={handleOpenKeyDialog}
+                className="w-full sm:w-auto px-8 py-3 bg-red-600 hover:bg-red-700 text-white rounded-full text-sm font-bold transition-all shadow-md"
+              >
+                使用我的專屬金鑰
+              </button>
+            </div>
+            
+            <p className="mt-6 text-[10px] text-red-400 opacity-70">
+              提示：您可以前往 <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="underline" rel="noreferrer">Google AI Studio</a> 建立金鑰以獲得更穩定的體驗。
+            </p>
+          </div>
+        )}
+        
         <ComicDisplay panels={state.panels} status={state.status} completedCount={state.completedCount} style={state.activeStyle} />
       </main>
-      <footer className="text-center py-6 text-warm-700/60 text-sm">
-        <p>Powered by Google Gemini | 專為心靈健康與兒童創作設計</p>
+
+      <footer className="text-center py-10 text-warm-700/60 text-sm">
+        <div className="flex items-center justify-center gap-4 mb-2">
+          <span className="w-8 h-px bg-warm-200"></span>
+          <span className="font-eng italic">Healing through art</span>
+          <span className="w-8 h-px bg-warm-200"></span>
+        </div>
+        <p>Powered by Google Gemini | 專為心靈健康設計</p>
       </footer>
     </div>
   );

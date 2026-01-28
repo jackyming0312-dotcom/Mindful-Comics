@@ -2,8 +2,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ScriptResponseItem, ArtStyle, GenerationMode } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 const getStylePrompt = (style: ArtStyle) => {
   switch (style) {
     case 'japanese':
@@ -29,9 +27,12 @@ export const generateComicScript = async (
   mode: GenerationMode,
   userImagesBase64?: string[]
 ): Promise<ScriptResponseItem[]> => {
+  // CRITICAL: Initialize right before use to get latest API_KEY
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
   try {
-    // FIX: Using gemini-flash-lite-latest for better regional support
-    const model = "gemini-flash-lite-latest";
+    // Fix: Use gemini-3-pro-preview for complex reasoning tasks like comic script generation
+    const model = 'gemini-3-pro-preview';
     const styleDescription = getStylePrompt(style);
     const hasPhoto = userImagesBase64 && userImagesBase64.length > 0;
     
@@ -102,8 +103,11 @@ export const generatePanelImage = async (
   mode: GenerationMode,
   referenceImagesBase64?: string[]
 ): Promise<string> => {
+  // CRITICAL: Initialize right before use to get latest API_KEY
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
   try {
-    const model = "gemini-2.5-flash-image";
+    const model = 'gemini-2.5-flash-image';
     const stylePrompt = getStylePrompt(style);
     const hasPhoto = referenceImagesBase64 && referenceImagesBase64.length > 0;
     
@@ -142,9 +146,15 @@ export const generatePanelImage = async (
 
     parts.push({ text: promptText });
 
+    // Fix: Explicitly provide imageConfig for nano banana series models
     const response = await ai.models.generateContent({
       model: model,
       contents: { parts },
+      config: {
+        imageConfig: {
+          aspectRatio: "1:1",
+        },
+      },
     });
 
     if (!response.candidates || response.candidates.length === 0) {
@@ -152,6 +162,7 @@ export const generatePanelImage = async (
     }
 
     for (const part of response.candidates[0].content.parts) {
+      // Find the image part, do not assume it is the first part.
       if (part.inlineData) {
         return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
       }
@@ -160,7 +171,7 @@ export const generatePanelImage = async (
     const textOutput = response.candidates[0].content.parts.find(p => p.text)?.text;
     if (textOutput) {
       console.error("Model refused to draw or returned text:", textOutput);
-      throw new Error("模型未能生成圖像。這通常是因為內容安全限制或描述過於複雜，請嘗試簡化故事敘述。");
+      throw new Error("模型未能生成圖像。");
     }
 
     throw new Error("Image generation failed.");
