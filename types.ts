@@ -3,6 +3,8 @@ export type ArtStyle = 'japanese' | 'korean' | 'european' | 'cyberpunk' | 'pixel
 
 export type GenerationMode = 'public' | 'kids';
 
+export type Gender = 'boy' | 'girl' | 'neutral';
+
 export interface ComicPanelData {
   panelNumber: number;
   description: string;

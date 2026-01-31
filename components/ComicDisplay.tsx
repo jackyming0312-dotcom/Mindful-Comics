@@ -19,7 +19,7 @@ const ComicDisplay: React.FC<ComicDisplayProps> = ({ panels, status, completedCo
   const handleDownload = (base64Data: string, panelNumber: number) => {
     const link = document.createElement('a');
     link.href = base64Data;
-    link.download = `cheering-comic-panel-${panelNumber}.png`;
+    link.download = `panel-${panelNumber}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -31,7 +31,7 @@ const ComicDisplay: React.FC<ComicDisplayProps> = ({ panels, status, completedCo
     setIsZipping(true);
     try {
       const zip = new JSZip();
-      const folder = zip.folder("cheering-comic");
+      const folder = zip.folder("self-cheering-comic");
       
       panels.forEach((panel, index) => {
         if (panel.imageData) {
@@ -43,14 +43,14 @@ const ComicDisplay: React.FC<ComicDisplayProps> = ({ panels, status, completedCo
       const content = await zip.generateAsync({ type: "blob" });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(content);
-      link.download = "cheering-comic-complete.zip";
+      link.download = "self-cheering-comics.zip";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(link.href);
     } catch (error) {
       console.error("Failed to generate ZIP:", error);
-      alert("打包下載失敗，請稍後再試。");
+      alert("ZIP 下載失敗，請稍後再試。");
     } finally {
       setIsZipping(false);
     }
@@ -83,7 +83,7 @@ const ComicDisplay: React.FC<ComicDisplayProps> = ({ panels, status, completedCo
       const padding = 100;
       const captionHeight = 160;
       const gutter = 60;
-      const headerHeight = 220;
+      const headerHeight = 180;
 
       // Calculate Total Dimensions (2x2 Grid)
       canvas.width = (panelSize * 2) + (gutter) + (padding * 2);
@@ -93,23 +93,19 @@ const ComicDisplay: React.FC<ComicDisplayProps> = ({ panels, status, completedCo
       ctx.fillStyle = "#fffcf5"; 
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw Unified Handwritten Title in Canvas
-      ctx.fillStyle = "#78350f"; 
-      ctx.font = "bold 96px 'Zhi Mang Xing', 'Noto Sans TC', sans-serif";
+      // Draw Unified English Title in Canvas
+      ctx.fillStyle = "#92400e"; 
+      ctx.font = "bold italic 90px 'Caveat', cursive, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("應援漫畫", canvas.width / 2, padding + 80);
-      
-      ctx.fillStyle = "#d97706"; 
-      ctx.font = "italic bold 42px 'Caveat', cursive, sans-serif";
-      ctx.fillText("Self-Cheering Comics", canvas.width / 2, padding + 135);
+      ctx.fillText("Self-Cheering Comics", canvas.width / 2, padding + 80);
       
       // Draw artistic divider
       ctx.strokeStyle = "#fbbf24";
       ctx.lineWidth = 4;
       ctx.lineCap = "round";
       ctx.beginPath();
-      ctx.moveTo(canvas.width / 2 - 120, padding + 165);
-      ctx.lineTo(canvas.width / 2 + 120, padding + 165);
+      ctx.moveTo(canvas.width / 2 - 150, padding + 110);
+      ctx.lineTo(canvas.width / 2 + 150, padding + 110);
       ctx.stroke();
 
       // Draw Panels
@@ -130,10 +126,10 @@ const ComicDisplay: React.FC<ComicDisplayProps> = ({ panels, status, completedCo
 
         // Draw Caption
         ctx.fillStyle = "#44403c"; 
-        ctx.font = "italic 40px 'Noto Sans TC', sans-serif";
+        ctx.font = "bold 36px 'Noto Sans TC', sans-serif";
         ctx.textAlign = "center";
         
-        const caption = `「${panels[i].caption}」`;
+        const caption = panels[i].caption;
         const words = caption.split('');
         let line = '';
         let currentY = y + panelSize + 85;
@@ -157,14 +153,14 @@ const ComicDisplay: React.FC<ComicDisplayProps> = ({ panels, status, completedCo
       const finalImage = canvas.toDataURL("image/jpeg", 0.9);
       const link = document.createElement('a');
       link.href = finalImage;
-      link.download = "cheering-comic-sheet.jpg";
+      link.download = "self-cheering-comic-sheet.jpg";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
 
     } catch (error) {
       console.error("Failed to combine images:", error);
-      alert("合併圖片失敗，請嘗試使用 ZIP 下載。");
+      alert("合併圖片失敗，請嘗試個別下載或 ZIP 下載。");
     } finally {
       setIsCombining(false);
     }
@@ -184,7 +180,7 @@ const ComicDisplay: React.FC<ComicDisplayProps> = ({ panels, status, completedCo
               {isScripting && (
                 <div className="flex flex-col items-center gap-4 text-stone-400">
                   <div className="w-12 h-12 rounded-full border-4 border-warm-200 border-t-warm-500 animate-spin"></div>
-                  <span className="font-medium">構思應援劇本中...</span>
+                  <span className="font-medium">構思劇本中...</span>
                 </div>
               )}
               {isDrawing && (
@@ -193,10 +189,10 @@ const ComicDisplay: React.FC<ComicDisplayProps> = ({ panels, status, completedCo
                     <div className="w-16 h-16 rounded-full border-4 border-warm-100 border-t-warm-500 animate-spin"></div>
                     <div className="absolute inset-0 flex items-center justify-center text-xs font-bold">{i + 1}</div>
                   </div>
-                  <span className="font-bold">正在繪製第 {i + 1} 格應援</span>
+                  <span className="font-bold">正在繪製第 {i + 1} 格</span>
                 </div>
               )}
-              {isWaiting && <span className="text-stone-300 font-medium">等候繪製...</span>}
+              {isWaiting && <span className="text-stone-300 font-medium">等候中...</span>}
             </div>
             <div className="mt-4 bg-stone-100 h-14 w-full rounded-2xl animate-pulse"></div>
           </div>
@@ -211,7 +207,7 @@ const ComicDisplay: React.FC<ComicDisplayProps> = ({ panels, status, completedCo
       
       {status === 'scripting' && (
         <div className="text-center mb-10">
-          <p className="text-warm-700 font-bold text-xl animate-pulse">正在為您編織一段應援自己的故事...</p>
+          <p className="text-warm-700 font-bold text-xl animate-pulse">正在編織您的應援故事...</p>
         </div>
       )}
 
@@ -227,7 +223,6 @@ const ComicDisplay: React.FC<ComicDisplayProps> = ({ panels, status, completedCo
                     className="w-full h-full object-cover"
                   />
                   
-                  {/* Subtle Light Overlay for Animated Style */}
                   {style === 'animated' && (
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer-slow pointer-events-none"></div>
                   )}
@@ -240,7 +235,7 @@ const ComicDisplay: React.FC<ComicDisplayProps> = ({ panels, status, completedCo
                     <button 
                       onClick={() => handleDownload(panel.imageData!, panel.panelNumber)}
                       className="p-3 bg-white/90 hover:bg-warm-500 hover:text-white text-stone-700 rounded-full shadow-lg backdrop-blur-sm transition-all active:scale-90"
-                      title="下載圖片"
+                      title="下載此格"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -252,8 +247,8 @@ const ComicDisplay: React.FC<ComicDisplayProps> = ({ panels, status, completedCo
               
               <div className="mt-6 px-6 py-5 bg-white rounded-3xl shadow-soft border border-stone-100 relative min-h-[5rem] flex items-center justify-center text-center">
                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-6 h-6 bg-white border-l border-t border-stone-100 transform rotate-45"></div>
-                 <p className="text-stone-700 font-bold text-lg leading-relaxed italic">
-                   「{panel.caption}」
+                 <p className="text-stone-700 font-bold text-lg leading-relaxed">
+                   "{panel.caption}"
                  </p>
               </div>
             </div>
@@ -268,12 +263,11 @@ const ComicDisplay: React.FC<ComicDisplayProps> = ({ panels, status, completedCo
       {status === 'completed' && (
         <div className="mt-20 text-center animate-fade-in space-y-8">
           <div className="inline-block px-8 py-4 bg-gradient-to-r from-warm-50 to-orange-50 rounded-full border-2 border-warm-200 border-dashed">
-             <span className="text-warm-800 font-bold">✨ 完成了！這是一份送給您自己的應援禮物。</span>
+             <span className="text-warm-800 font-bold">✨ 完成了！這是送給您的一份應援禮物。</span>
           </div>
           
           <div className="flex flex-col items-center gap-6">
             <div className="flex flex-wrap justify-center gap-4">
-              {/* Option 1: Single Image Sheet */}
               <button 
                 onClick={handleDownloadSingleImage}
                 disabled={isCombining}
@@ -286,10 +280,9 @@ const ComicDisplay: React.FC<ComicDisplayProps> = ({ panels, status, completedCo
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                 )}
-                <span className="text-xl">合併下載 (一張應援漫畫)</span>
+                <span className="text-xl">下載合併圖長圖</span>
               </button>
 
-              {/* Option 2: ZIP */}
               <button 
                 onClick={handleDownloadAllZip}
                 disabled={isZipping}
@@ -305,10 +298,6 @@ const ComicDisplay: React.FC<ComicDisplayProps> = ({ panels, status, completedCo
                 <span className="text-xl">打包下載 (ZIP)</span>
               </button>
             </div>
-
-            <p className="text-stone-400 text-sm max-w-md mx-auto leading-relaxed">
-              您可以下載一張完整的應援漫畫，隨時提醒自己：<br />「你已經做得很棒了！」
-            </p>
           </div>
         </div>
       )}

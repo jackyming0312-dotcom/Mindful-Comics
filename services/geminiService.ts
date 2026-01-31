@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { ScriptResponseItem, ArtStyle, GenerationMode } from '../types';
+import { ScriptResponseItem, ArtStyle, GenerationMode, Gender } from '../types';
 
 const getStylePrompt = (style: ArtStyle) => {
   switch (style) {
@@ -25,21 +25,23 @@ export const generateComicScript = async (
   userInput: string, 
   style: ArtStyle,
   mode: GenerationMode,
-  userImagesBase64?: string[]
+  userImagesBase64?: string[],
+  gender: Gender = 'neutral'
 ): Promise<ScriptResponseItem[]> => {
-  // CRITICAL: Initialize right before use to get latest API_KEY
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   try {
-    // Fix: Use gemini-3-pro-preview for complex reasoning tasks like comic script generation
     const model = 'gemini-3-pro-preview';
     const styleDescription = getStylePrompt(style);
     const hasPhoto = userImagesBase64 && userImagesBase64.length > 0;
     
+    // Explicit gender naming for AI prompts
+    const genderTerm = gender === 'boy' ? 'little boy' : gender === 'girl' ? 'little girl' : 'child';
+    
     const modeInstruction = mode === 'kids' 
       ? `Target Audience: Children. 
-         Character Focus: The main character is a cute child. 
-         ${hasPhoto ? "CRITICAL: Analyze the provided photo. Describe the character's hair (style/color), eye shape, and facial structure precisely to maintain likeness." : ""}
+         Character Focus: The main character is a ${genderTerm}. 
+         ${hasPhoto ? `CRITICAL: Analyze the provided photo. Describe the ${genderTerm}'s hair (style/color), eye shape, and facial structure precisely to maintain likeness.` : `The main character is a very cute ${genderTerm} with big expressive eyes and a happy smile.`}
          Theme: Positive, magical, and friendly.` 
       : `Target Audience: General Public. Focus on mental health and emotional journey.
          ${hasPhoto ? "CRITICAL: The protagonist MUST be the person from the uploaded photo. Describe their facial features, hairstyle, and distinctive physical traits in detail for each panel." : ""}`;
@@ -64,7 +66,8 @@ export const generateComicScript = async (
       
       INSTRUCTION: 
       1. For 'panelDescription': Write a high-quality, descriptive ENGLISH prompt for an image generator. 
-         It MUST include specific details about the character's facial expression, hair, and clothing to ensure consistency with the reference photo.
+         It MUST include specific details about the character's facial expression, hair, and clothing to ensure consistency. 
+         ALWAYS explicitly mention the character is a "${genderTerm}" in every panel prompt.
       2. For 'caption': Write a warm, supportive Traditional Chinese text.
       
       Output ONLY valid JSON.`
@@ -74,14 +77,14 @@ export const generateComicScript = async (
       model: model,
       contents: { parts: contents },
       config: {
-        systemInstruction: "You are an expert comic designer. You excel at character consistency and emotional storytelling. You must describe the character's appearance in the image prompts based on the visual evidence in the provided photos.",
+        systemInstruction: "You are an expert comic designer. You excel at character consistency and emotional storytelling.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
           items: {
             type: Type.OBJECT,
             properties: {
-              panelDescription: { type: Type.STRING, description: "Detailed visual prompt in English including character physical traits" },
+              panelDescription: { type: Type.STRING, description: "Detailed visual prompt in English" },
               caption: { type: Type.STRING, description: "Healing Chinese caption" },
             },
             required: ["panelDescription", "caption"],
@@ -103,7 +106,6 @@ export const generatePanelImage = async (
   mode: GenerationMode,
   referenceImagesBase64?: string[]
 ): Promise<string> => {
-  // CRITICAL: Initialize right before use to get latest API_KEY
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
@@ -132,9 +134,7 @@ export const generatePanelImage = async (
       ${hasPhoto ? `
       CHARACTER LIKENESS REQUIREMENT:
       - You MUST replicate the facial features of the person in the provided reference photos.
-      - Match their eye shape, facial structure, nose shape, and mouth precisely.
-      - Ensure the hairstyle and hair color are consistent with the reference.
-      - Replicate the specific facial expression described in the scene: "${description.split('.')[0]}".
+      - Ensure the hairstyle and hair color are consistent.
       - The character in this drawing must be unmistakably the same person as in the photo.
       ` : ""}
       
@@ -146,7 +146,6 @@ export const generatePanelImage = async (
 
     parts.push({ text: promptText });
 
-    // Fix: Explicitly provide imageConfig for nano banana series models
     const response = await ai.models.generateContent({
       model: model,
       contents: { parts },
@@ -162,20 +161,12 @@ export const generatePanelImage = async (
     }
 
     for (const part of response.candidates[0].content.parts) {
-      // Find the image part, do not assume it is the first part.
       if (part.inlineData) {
         return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
       }
     }
 
-    const textOutput = response.candidates[0].content.parts.find(p => p.text)?.text;
-    if (textOutput) {
-      console.error("Model refused to draw or returned text:", textOutput);
-      throw new Error("模型未能生成圖像。");
-    }
-
     throw new Error("Image generation failed.");
-
   } catch (error: any) {
     console.error("Image generation service error:", error);
     throw error;

@@ -1,20 +1,24 @@
 
 import React, { useState, useRef } from 'react';
-import { ArtStyle, GenerationMode } from '../types';
+import { ArtStyle, GenerationMode, Gender } from '../types';
 
 interface InputSectionProps {
-  onSubmit: (text: string, style: ArtStyle, mode: GenerationMode, imagesBase64: string[]) => void;
+  onSubmit: (text: string, style: ArtStyle, mode: GenerationMode, imagesBase64: string[], gender: Gender) => void;
   isLoading: boolean;
 }
 
 const InputSection: React.FC<InputSectionProps> = ({ onSubmit, isLoading }) => {
   const [mode, setMode] = useState<GenerationMode>('public');
+  const [gender, setGender] = useState<Gender>('boy');
   const [style, setStyle] = useState<ArtStyle>('japanese');
   const [input, setInput] = useState('');
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const KIDS_STORIES = [
+    { id: 'cloud', label: '🏰 雲朵城堡', prompt: '在柔軟如棉花糖的雲朵城堡裡玩耍，發現會飛的小馬與彩虹滑梯' },
+    { id: 'park', label: '🎠 奇幻遊樂園', prompt: '旋轉木馬在夜晚會帶我飛向彩虹，那是一個充滿甜點與歡笑的地方' },
+    { id: 'detective', label: '🕵️ 森林偵探', prompt: '我和聰明的小兔子組成偵探團，一起尋找森林裡消失的神祕紅蘿蔔' },
     { id: 'space', label: '🚀 太空冒險', prompt: '一個關於在月球上野餐的奇幻冒險' },
     { id: 'ocean', label: '🧜‍♀️ 海底世界', prompt: '在五彩斑斕的海底宮殿參加派對' },
     { id: 'animal', label: '🐾 森林學校', prompt: '和會說話的小動物們一起上課的一天' },
@@ -52,7 +56,7 @@ const InputSection: React.FC<InputSectionProps> = ({ onSubmit, isLoading }) => {
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (input.trim() && !isLoading) {
-      onSubmit(input, style, mode, selectedImages);
+      onSubmit(input, style, mode, selectedImages, gender);
     }
   };
 
@@ -69,7 +73,7 @@ const InputSection: React.FC<InputSectionProps> = ({ onSubmit, isLoading }) => {
   return (
     <div className="w-full max-w-2xl mx-auto px-4 mb-12 space-y-10 animate-fade-in">
       
-      {/* Mode Switcher - Softer feel */}
+      {/* Mode Switcher */}
       <div className="flex bg-warm-100/50 p-1.5 rounded-3xl border border-warm-200 shadow-inner">
         <button 
           onClick={() => { setMode('public'); setInput(''); }}
@@ -87,7 +91,7 @@ const InputSection: React.FC<InputSectionProps> = ({ onSubmit, isLoading }) => {
         </button>
       </div>
 
-      {/* Style Picker - Scrolling Cards */}
+      {/* Style Picker */}
       <div className="space-y-4">
         <div className="flex items-center justify-between px-2">
           <label className="text-stone-700 font-bold flex items-center gap-2">
@@ -111,6 +115,29 @@ const InputSection: React.FC<InputSectionProps> = ({ onSubmit, isLoading }) => {
 
       <div className="glass-card p-6 md:p-8 rounded-[2rem] shadow-soft space-y-8 relative overflow-hidden">
         
+        {/* Kids Mode Specific: Gender Selection */}
+        {mode === 'kids' && (
+          <div className="space-y-4 animate-fade-in">
+            <label className="text-stone-700 font-bold block ml-1">👦👧 我是...</label>
+            <div className="flex gap-4">
+              <button
+                onClick={() => setGender('boy')}
+                className={`flex-1 py-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all duration-300 ${gender === 'boy' ? 'bg-blue-50 border-blue-400 text-blue-700 shadow-md scale-105' : 'bg-white border-stone-100 text-stone-400'}`}
+              >
+                <span className="text-4xl">👦</span>
+                <span className="font-bold">小男生</span>
+              </button>
+              <button
+                onClick={() => setGender('girl')}
+                className={`flex-1 py-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all duration-300 ${gender === 'girl' ? 'bg-pink-50 border-pink-400 text-pink-700 shadow-md scale-105' : 'bg-white border-stone-100 text-stone-400'}`}
+              >
+                <span className="text-4xl">👧</span>
+                <span className="font-bold">小女生</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Input Area */}
         {mode === 'public' ? (
           <div className="space-y-6">
@@ -137,13 +164,6 @@ const InputSection: React.FC<InputSectionProps> = ({ onSubmit, isLoading }) => {
                   {input.length} 字
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2 pt-1">
-                {['#最近開心的事', '#我的小煩惱', '#未來的夢想'].map(tag => (
-                  <button key={tag} onClick={() => setInput(p => p + (p ? ' ' : '') + tag)} className="text-xs bg-warm-50 text-warm-600 px-3 py-1.5 rounded-full hover:bg-warm-100 transition-colors">
-                    {tag}
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
         ) : (
@@ -164,7 +184,7 @@ const InputSection: React.FC<InputSectionProps> = ({ onSubmit, isLoading }) => {
           </div>
         )}
 
-        {/* Character Photo Section - High Emphasis */}
+        {/* Character Photo Section */}
         <div className="space-y-4 pt-4 border-t border-stone-100">
            <div className="flex items-center justify-between">
               <label className="text-stone-700 font-bold flex items-center gap-2">

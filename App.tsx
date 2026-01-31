@@ -1,13 +1,12 @@
 
 import React, { useState } from 'react';
 import { generateComicScript, generatePanelImage } from './services/geminiService';
-import { ComicGenerationState, ComicPanelData, ArtStyle, GenerationMode } from './types';
+import { ComicGenerationState, ComicPanelData, ArtStyle, GenerationMode, Gender } from './types';
 import Header from './components/Header';
 import InputSection from './components/InputSection';
 import ComicDisplay from './components/ComicDisplay';
 
 // Extend window for AI Studio tools
-// Fix: Use the AIStudio interface to match the expected global type and resolve merge conflicts
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
@@ -15,7 +14,8 @@ declare global {
   }
 
   interface Window {
-    aistudio: AIStudio;
+    // FIX: Added readonly to match the global definition provided by the environment
+    readonly aistudio: AIStudio;
   }
 }
 
@@ -37,13 +37,13 @@ const App: React.FC = () => {
     }
   };
 
-  const handleStartGeneration = async (userInput: string, style: ArtStyle, mode: GenerationMode, userImagesBase64?: string[]) => {
+  const handleStartGeneration = async (userInput: string, style: ArtStyle, mode: GenerationMode, userImagesBase64: string[], gender: Gender) => {
     setState({ status: 'scripting', panels: [], completedCount: 0, error: undefined, activeStyle: style });
     setQuotaWaitTime(null);
 
     try {
-      // 1. Generate Script
-      const scriptItems = await generateComicScript(userInput, style, mode, userImagesBase64);
+      // 1. Generate Script with gender info
+      const scriptItems = await generateComicScript(userInput, style, mode, userImagesBase64, gender);
       
       const initialPanels: ComicPanelData[] = scriptItems.map((item, index) => ({
         panelNumber: index + 1,
@@ -58,7 +58,7 @@ const App: React.FC = () => {
         completedCount: 0,
       }));
 
-      // 2. Generate Images sequentially with smarter retry
+      // 2. Generate Images sequentially
       const newPanels = [...initialPanels];
       
       for (let i = 0; i < newPanels.length; i++) {
@@ -82,10 +82,8 @@ const App: React.FC = () => {
             retryCount++;
             const errorMsg = err.message || "";
             
-            // Check for Quota Error (429)
             if (errorMsg.includes("429") || errorMsg.includes("quota") || errorMsg.includes("Resource exhausted")) {
-              console.warn(`Panel ${i + 1} hit quota limit. Waiting...`);
-              const wait = retryCount * 15000; // 15s, 30s...
+              const wait = retryCount * 15000;
               setQuotaWaitTime(Math.ceil(wait / 1000));
               await new Promise(res => setTimeout(res, wait));
               setQuotaWaitTime(null);
@@ -107,15 +105,19 @@ const App: React.FC = () => {
     } catch (error: any) {
       console.error("Generation process failed:", error);
       
+      const rawError = error.message || "";
+      if (rawError.includes("Requested entity was not found.")) {
+        await window.aistudio.openSelectKey();
+        setState(prevState => ({ ...prevState, status: 'idle', error: undefined }));
+        return;
+      }
+
       let errorMessage = "創作過程中遇到了一些問題。";
       let isQuotaError = false;
 
-      const rawError = error.message || "";
       if (rawError.includes("429") || rawError.includes("quota") || rawError.includes("Resource exhausted")) {
         isQuotaError = true;
-        errorMessage = "AI 生成頻率已達上限。免費額度通常每分鐘僅能生成少數幾次。";
-      } else if (rawError.includes("location is not supported")) {
-        errorMessage = "您的地區目前尚未支援此 AI 圖像生成模型。";
+        errorMessage = "AI 生成頻率已達上限。";
       }
 
       setState(prevState => ({
@@ -139,14 +141,14 @@ const App: React.FC = () => {
         {quotaWaitTime !== null && (
           <div className="max-w-2xl mx-auto mb-8 p-4 bg-orange-50 border border-orange-200 rounded-2xl flex items-center justify-center gap-3 text-orange-700 animate-pulse">
             <span className="text-xl">⏳</span>
-            <span className="font-bold">配額緩衝中，請稍候 {quotaWaitTime} 秒...</span>
+            <span className="font-bold">魔法冷卻中，請稍候 {quotaWaitTime} 秒...</span>
           </div>
         )}
 
         {state.error && (
           <div className="max-w-2xl mx-auto mb-8 p-8 bg-red-50 border-2 border-red-100 rounded-[2.5rem] text-red-800 text-center animate-fade-in shadow-soft">
             <div className="text-4xl mb-4">🌬️</div>
-            <p className="font-bold text-xl mb-3">AI 正在深呼吸...</p>
+            <p className="font-bold text-xl mb-3">AI 正在休息...</p>
             <p className="text-sm opacity-90 leading-relaxed mb-6">{state.error}</p>
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -163,10 +165,6 @@ const App: React.FC = () => {
                 使用我的專屬金鑰
               </button>
             </div>
-            
-            <p className="mt-6 text-[10px] text-red-400 opacity-70">
-              提示：您可以前往 <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="underline" rel="noreferrer">Google AI Studio</a> 建立金鑰以獲得更穩定的體驗。
-            </p>
           </div>
         )}
         
